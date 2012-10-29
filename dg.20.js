@@ -58,6 +58,9 @@ var curarrowid = 0;
 var curslider = "";
 
 var gm;
+var pumenu;
+
+
 
 function popfont(id)
 {
@@ -96,6 +99,43 @@ function pointinpoly(poly, pt){
 		&& (pt.x < (poly[j].x - poly[i].x) * (pt.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)
 		&& (c = !c);
 	return c;
+}
+
+function PopUpMenu()
+{
+  this.menu = $('#menu');
+  this.x = 0;
+  this.y = 0;
+  this.hide = function(){
+    this.menu.hide('fast');
+  }
+  this.ishidden =function(){
+    return $('#menu').css('display') == 'none';
+  }
+  this.setlocation = function(x,y) {
+    this.x = x;
+    this.y = y;
+  }
+  this.waiting = function() {
+    this.menu.html('<div><img src="/site_media/ajax-loader.gif">loading...</img></div>');
+  }
+  this.set = function(contents) {
+    this.menu.hide('fast');
+    this.menu.html(contents);
+    setTimeout(function () {
+      var cx = pumenu.x +30;
+      var cy = pumenu.y +30;
+      if (pumenu.menu.height() + pumenu.y > $(window).height() - 90) {
+        cy = Math.max(30, pumenu.y - pumenu.menu.height() - 30);
+      }
+      if (pumenu.menu.width() + pumenu.x > $(window).width() - 200) {
+        cx = Math.max(10, pumenu.x - pumenu.menu.width() - 30);
+      }
+      pumenu.menu.attr('style','position:absolute; top: '+ cy +
+                           'px; left:'+ cx + 'px;');
+      pumenu.menu.show('fast');
+    },200);
+  } 
 }
 
 function GameMap(cx,cy)
@@ -349,7 +389,6 @@ function GameMap(cx,cy)
   {
     var key;
     
-    buildnamedroutes();
 
     for (key in viewable){
       if( typeof key === 'string'){
@@ -379,6 +418,7 @@ function GameMap(cx,cy)
         }
       }
     }
+    buildnamedroutes();
   }
 
 
@@ -712,14 +752,15 @@ function stringprompt(args)
     contents += '  <h3>' + args.subhead + '</h3><br/><br/>';
   }
   contents += '  <form id="'+formid+'" onsubmit="return false;"><table>';
-  contents += '    <tr><td colspan="2"><input tabindex="1" maxlength="'+args.maxlen+'" type="text" value="' + args.text + '" id="' + stringid +'" /></td></tr>';
+  contents += '    <tr><td colspan="2">';
+  contents += '      <input tabindex="1" maxlength="'+args.maxlen+'" type="text" value="' + HTMLEncode(args.text) + '" id="' + stringid +'" />';
+  contents += '    </td></tr>';
   contents += '    <tr><td><input type="button"  tabindex="3" value="'+args.cancel+'" id="' + cancelid + '" /></td>';
   contents += '    <td style="padding-top:10px;"><input tabindex="2" type="button" value="'+args.submit+'" id="' + submitid + '" /></td></tr>';
   contents += '  </table></form>';
   contents += '</div>';
   contents += '<script>$(document).ready(function(){$("#'+stringid+'").focus();});</script>'
  
-
 
   transienttabs.pushtab(containerid, args.title, contents,false);
   transienttabs.displaytab(containerid);
@@ -748,7 +789,6 @@ function stringprompt(args)
 
 function sendrequest(callback,request,method,postdata)
 {
-  //setmenuwaiting();
   $.ajax( 
   { 
     url: request, 
@@ -793,16 +833,6 @@ function showbadge(badge){
   setstatusmsg("<img class='noborder' width='150' height='150' src='/site_media/badges/"+badge+".png'/>");
 }
   
-function setmenuwaiting()
-{
-  setstatusmsg("Loading...");
-  $('#menu').html('<div><img src="/site_media/ajax-loader.gif">loading...</img></div>');
-}
-
-function killmenu()
-{
-  $('#menu').hide();
-}
 
 
 function hidestatusmsg(msg)
@@ -1039,12 +1069,14 @@ function buildroute(r, container, color)
     route.setAttribute('points',points2);
     route.setAttribute('stroke-linecap', 'round');
     route.setAttribute('stroke-linejoin', 'round');
-    route.setAttribute('onmouseover',
-                        'routehoveron(evt,"'+r+'")');
-    route.setAttribute('onmouseout',
-                        'routehoveroff(evt,"'+r+'")');
-    route.setAttribute('onclick',
-                        'doroutemousedown(evt,"'+r+'")');
+    if (gm.zoomlevel < 6) {
+      route.setAttribute('onmouseover',
+                          'routehoveron(evt,"'+r+'")');
+      route.setAttribute('onmouseout',
+                          'routehoveroff(evt,"'+r+'")');
+      route.setAttribute('onclick',
+                          'doroutemousedown(evt,"'+r+'")');
+    }
     container.appendChild(route);
   }
   return 1;
@@ -1118,12 +1150,14 @@ function buildsectorfleets(sector,newsectorl1,newsectorl2)
       group.setAttribute('id', gid);
       group.setAttribute('stroke', color);
       group.setAttribute('stroke-width', '.01');
-      group.setAttribute('onmouseover',
-                         'fleethoveron(evt,"'+fleet.i+'",'+fleet.x+','+fleet.y+');');
-      group.setAttribute('onmouseout', 
-                         'fleethoveroff(evt,"'+fleet.i+'")');
-      group.setAttribute('onclick', 
-                         'dofleetmousedown(evt,"'+fleet.i+'",'+playerowned+')');
+      if (gm.zoomlevel < 6) {
+        group.setAttribute('onmouseover',
+                           'fleethoveron(evt,"'+fleet.i+'",'+fleet.x+','+fleet.y+');');
+        group.setAttribute('onmouseout', 
+                           'fleethoveroff(evt,"'+fleet.i+'")');
+        group.setAttribute('onclick', 
+                           'dofleetmousedown(evt,"'+fleet.i+'",'+playerowned+')');
+      }
       if ('r' in fleet){
         if(!buildroute(fleet.r, newsectorl1, color)){
           delete fleet.r;
@@ -1219,6 +1253,8 @@ function buildsectorfleets(sector,newsectorl1,newsectorl2)
       }
       // the fleet itself
       circle = document.createElementNS(svgns, 'circle');
+      
+
       circle.setAttribute('fill', color);
       circle.setAttribute('cx', gm.tx(fleet.x));
       circle.setAttribute('cy', gm.ty(fleet.y));
@@ -1226,6 +1262,20 @@ function buildsectorfleets(sector,newsectorl1,newsectorl2)
       circle.setAttribute('or', gm.td(0.04));
       var cid = 'f'+fleet.i;
       circle.setAttribute('id', cid );
+      
+      if (fleet.f&64) {
+        // pirated
+        var animation = document.createElementNS(svgns, 'animate');
+        animation.setAttribute('attributeName','fill');
+        animation.setAttribute('from',color);
+        animation.setAttribute('to','white');
+        animation.setAttribute('values',  'gray;gray;red;white');
+        animation.setAttribute('keyTimes','0.0;0.95;.96;1.0');
+        animation.setAttribute('dur','3.0');
+        animation.setAttribute('repeatCount','indefinite');
+        circle.appendChild(animation);
+      }
+      
       group.appendChild(circle);
       newsectorl2.appendChild(group);
     }
@@ -1280,18 +1330,23 @@ function buildsectorplanets(sector,newsectorl1, newsectorl2)
                        (gm.playercolors[planet.o][1]==planet.i)) ? true:false;
       // draw You Are Here and it's arrow if it's a new player
       if (((newplayer === 1) && (planet.f&128))){
-        gm.youarehere.setAttribute('visibility','visible');
-        gm.youarehere.setAttribute('x',gm.tx(planet.x-1.5));
-        gm.youarehere.setAttribute('y',gm.ty(planet.y+1.3));
-        line = document.createElementNS(svgns, 'line');
-        line.setAttribute('stroke-width', '1.2');
-        line.setAttribute('stroke', '#aaaaaa');
-        line.setAttribute('marker-end', 'url(#endArrow)');
-        line.setAttribute('x2', gm.tx(planet.x-0.2));
-        line.setAttribute('y2', gm.ty(planet.y+0.3));
-        line.setAttribute('x1', gm.tx(planet.x-0.7));
-        line.setAttribute('y1', gm.ty(planet.y+1.0));
-        newsectorl2.appendChild(line);
+          gm.youarehere.setAttribute('visibility','hidden');
+          setstatusmsg(gm.ty(planet.y));
+        if((gm.ty(planet.y) > 0)&&(gm.ty(planet.y) < gm.screenheight)){
+          gm.youarehere.setAttribute('visibility','visible');
+          gm.youarehere.setAttribute('font-size',gm.td(.2));
+          gm.youarehere.setAttribute('x',gm.tx(planet.x-1.5));
+          gm.youarehere.setAttribute('y',gm.ty(planet.y+1.3));
+          line = document.createElementNS(svgns, 'line');
+          line.setAttribute('stroke-width', gm.td(.03));
+          line.setAttribute('stroke', '#ffffff');
+          line.setAttribute('marker-end', 'url(#endArrow)');
+          line.setAttribute('x2', gm.tx(planet.x-0.2));
+          line.setAttribute('y2', gm.ty(planet.y+0.3));
+          line.setAttribute('x1', gm.tx(planet.x-0.7));
+          line.setAttribute('y1', gm.ty(planet.y+1.0));
+          newsectorl2.appendChild(line);
+        }
       }
     
       // sensor range
@@ -1513,12 +1568,14 @@ function buildsectorplanets(sector,newsectorl1, newsectorl2)
       circle.setAttribute('r', gm.td(planet.r));
       circle.setAttribute('or', gm.td(planet.r));
       circle.setAttribute('fill', planet.c);
-      circle.setAttribute('onmouseover',
-                          'planethoveron(evt,"'+planet.i+'","'+planet.x+'","'+planet.y+'")');
-      circle.setAttribute('onmouseout',
-                          'planethoveroff(evt,"'+planet.i+'")');
-      circle.setAttribute('onclick',
-                          'doplanetmousedown(evt,"'+planet.i+'")');
+      if (gm.zoomlevel < 6) {
+        circle.setAttribute('onmouseover',
+                            'planethoveron(evt,"'+planet.i+'","'+planet.x+'","'+planet.y+'")');
+        circle.setAttribute('onmouseout',
+                            'planethoveroff(evt,"'+planet.i+'")');
+        circle.setAttribute('onclick',
+                            'doplanetmousedown(evt,"'+planet.i+'")');
+      }
       newsectorl2.appendChild(circle);
     }
   }
@@ -1679,11 +1736,6 @@ function getplanet(planetid, mx, my)
 }
 
 
-function movemenu(sx,sy)
-{
-  $("#menu").css('top',sy);
-  $("#menu").css('left',sx);
-}
 
 function buildform(subform)
 {
@@ -1919,7 +1971,7 @@ function RouteBuilder()
     } else {
       this.curfleet = 0;
     }
-    killmenu();
+    pumenu.hide();
     transienttabs.temphidetabs();
     permanenttabs.temphidetabs();
     if(buildanother === 1){
@@ -2147,6 +2199,7 @@ function handlekeydown(evt)
       }
     } else if (evt.keyCode == 27) { // escape
       if(routebuilder.active()){
+        alert('hi');
         if(buildanother){
           sendrequest(handleserverresponse,
                       '/fleets/'+routebuilder.curfleet.i+'/scrap/',
@@ -2156,6 +2209,10 @@ function handlekeydown(evt)
           
         buildanother = 0;
         return false;
+      } else {
+        transienttabs.hidetabs();
+        permanenttabs.hidetabs();
+        pumenu.hide();
       }
     } else if ((evt.keyCode === 61)||
                (evt.keyCode === 107)||
@@ -2308,7 +2365,7 @@ function routehoveroff(evt,route)
 function doroutemousedown(evt,route)
 {
   gm.setxy(evt);
-  movemenu(gm.mousepos.x+10,gm.mousepos.y+10); 
+  pumenu.setlocation(gm.mousepos.x,gm.mousepos.y);
   if ((routebuilder.curfleet)&&(routebuilder.active())){
     // routeid, x, y, leg   
     var newroute = {};
@@ -2355,20 +2412,13 @@ function fleethoveroff(evt,fleet)
   gm.setxy(evt);
 }
 
-function buildmenu()
-{
-  $('#menu').attr('style','position:absolute; top:'+(gm.mousepos.y+10)+
-                       'px; left:'+(gm.mousepos.x+10)+ 'px;');
-  $('#menu').show();
-}
 
 
 function handleserverresponse(response)
 {
   var id,title,content;
   if ('menu' in response){
-    $('#menu').html(response.pagedata);
-    $('#menu').show();
+    pumenu.set(response.pagedata);
   }
 
   if(('protocolversion' in response)&&(response.protocolversion != protocolversion)){
@@ -2379,7 +2429,7 @@ function handleserverresponse(response)
     id = response.id;
     title = response.title;
     content = response.pagedata;
-    $('#menu').hide();
+    pumenu.hide();
     transienttabs.pushtab(id, title, 'hi there1',false);
     transienttabs.settabcontent(id, content);
     if('takesinput' in response){
@@ -2392,7 +2442,7 @@ function handleserverresponse(response)
     id = response.id;
     title = response.title;
     content = response.pagedata;
-    $('#menu').hide();
+    pumenu.hide();
     permanenttabs.settabcontent(id, content);
   }
 
@@ -2405,7 +2455,7 @@ function handleserverresponse(response)
   }
 
   if ('killmenu' in response){
-    $('#menu').hide();
+    pumenu.hide();
   }
 
   if ('killtab' in response){
@@ -2465,7 +2515,7 @@ function handleserverresponse(response)
     if(route){
       route.parentNode.removeChild(route);
       delete gm.routes[response.deleteroute];
-      killmenu();
+      pumenu.hide();
     }
 
   }
@@ -2531,7 +2581,7 @@ function newmenu(request, method, postdata)
 
 function newslider(request, slider)
 {
-  killmenu();
+  pumenu.hide();
   sendrequest(handleserverresponse, request,'GET','');
   curslider = slider;
 }
@@ -2542,7 +2592,7 @@ function sendform(subform,request)
   var submission = buildform(subform);
   sendrequest(handleserverresponse,request,'POST',submission);
   $('#window').hide();
-  setmenuwaiting();
+  pumenu.waiting();
 }
 
 function submitbuildfleet(planetid, mode)
@@ -2575,7 +2625,7 @@ function handlebutton(id,container,tabid,title,url,reloadurl){
 function handlemenuitemreq(event, url)
 {
   prevdef(event);
-  setmenuwaiting();
+  pumenu.waiting();
   var curloc = getcurxy(event);
   gm.setxy(event);
   
@@ -2593,7 +2643,7 @@ function dofleetmousedown(evt,fleet,playerowned)
   if(routebuilder.active()){
     routebuilder.addleg(evt);
   } else if(!routebuilder.curfleet){
-    buildmenu();
+    pumenu.setlocation(gm.mousepos.x,gm.mousepos.y);
     if(playerowned===1){
       handlemenuitemreq(evt, '/fleets/'+fleet+'/root');
     } else {
@@ -2615,7 +2665,7 @@ function doplanetmousedown(evt,planet)
     routebuilder.addleg(evt,planet);
     stopprop(evt);
   } else {
-    buildmenu();    
+    pumenu.setlocation(gm.mousepos.x,gm.mousepos.y);
     handlemenuitemreq(evt, '/planets/'+planet+'/root/');
   } 
 }
@@ -2633,6 +2683,7 @@ function init(timeleftinturn,cx,cy, protocol)
     curheight = $(document).height()-8; 
 
   gm = new GameMap(cx,cy);
+  pumenu = new PopUpMenu();
   var cz = gm.getmagnification();
   protocolversion = protocol;
 
@@ -2652,7 +2703,7 @@ function init(timeleftinturn,cx,cy, protocol)
             gm.curcenter.y-(curheight/2.0),
             curwidth, curheight];
 
-  movemenu(curwidth/8.0,curheight/4.0);
+  pumenu.setlocation(curwidth/8.0,curheight/4.0);
   
 
   
@@ -2678,13 +2729,13 @@ function init(timeleftinturn,cx,cy, protocol)
     if(evt.preventDefault){
       evt.preventDefault();
     }             
-    gm.setxy(evt);
+    //gm.setxy(evt);
     gm.dohover(evt);
     //setstatusmsg(gm.mousepos.mapx + "," + gm.mousepos.mapy);
     if(mousedown === true){
       mousecounter++;
       if(mousecounter%3 === 0){
-        killmenu();
+        pumenu.hide();
         permanenttabs.temphidetabs();
         transienttabs.temphidetabs();
         var neworigin = getcurxy(evt);
@@ -2706,25 +2757,27 @@ function init(timeleftinturn,cx,cy, protocol)
     if(evt.detail===2){
       var cxy = getcurxy(evt);
       gm.zoom(evt,"-",cxy);
-      killmenu();
+      pumenu.hide();
     } else if ((!routebuilder.active())&&
                (!currouteid)&&(!curplanetid)&&(!curfleetid)&&(!curarrowid)&&
                (!transienttabs.isopen())&&
                (!permanenttabs.isopen())&&
-               ($('#menu').css('display') == 'none')&&
+               (pumenu.ishidden())&&
                (mousecounter < 3)){
-      buildmenu();    
+      pumenu.waiting();
+      pumenu.setlocation(gm.mousepos.x,gm.mousepos.y);
       handlemenuitemreq(evt, '/map/root/');
     } else if((!routebuilder.active())&&
                (!currouteid)&&(!curplanetid)&&(!curfleetid)&&(!curarrowid)&&
-               ($('#menu').css('display') == 'none')&&
+               (pumenu.ishidden())&&
                (mousecounter < 3)){
       permanenttabs.hidetabs();
       transienttabs.hidetabs();
-    } else if($('#menu').css('display') != 'none'){
-      killmenu();
+    } else if(!pumenu.ishidden()) {
+      pumenu.hide();
     } else if((curarrowid)&&(!curplanetid)&&(!currouteid)&&(!curfleetid)){
       gm.mouseorigin = getcurxy(evt);
+      pumenu.setlocation(gm.mousepos.x,gm.mousepos.y);
       gm.eatmouseclick(evt);
       curarrowid=0;
     }
@@ -2791,3 +2844,17 @@ function expandtoggle(id)
 
 
 
+function HTMLEncode(str){
+  var i = str.length,
+      aRet = [];
+
+  while (i--) {
+    var iC = str[i].charCodeAt();
+    if (iC < 65 || iC > 127 || (iC>90 && iC<97)) {
+      aRet[i] = '&#'+iC+';';
+    } else {
+      aRet[i] = str[i];
+    }
+   }
+  return aRet.join('');    
+}
